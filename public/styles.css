@@ -288,23 +288,6 @@ svg {
   font-weight: 850;
 }
 
-.source-mini {
-  display: flex;
-  width: 90px;
-  height: 9px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--line);
-}
-
-.source-mini span:first-child {
-  background: var(--orange, #d68a34);
-}
-
-.source-mini span:last-child {
-  background: var(--teal);
-}
-
 .ticker-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
@@ -430,6 +413,39 @@ svg {
   font-size: 1.25rem;
 }
 
+.source-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.source-status span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.source-status strong.good {
+  color: var(--green);
+}
+
+.source-status strong.bad {
+  color: var(--red);
+}
+
+.source-status strong.muted {
+  color: var(--muted);
+}
+
 .timeline {
   display: grid;
   grid-template-columns: repeat(var(--buckets, 24), minmax(3px, 1fr));
@@ -456,11 +472,6 @@ svg {
 .bar-reddit {
   display: block;
   background: #d17a2d;
-}
-
-.bar-stocktwits {
-  display: block;
-  background: var(--teal);
 }
 
 .split-block {

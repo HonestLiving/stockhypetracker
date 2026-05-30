@@ -1,11 +1,10 @@
 # Stock Hype Tracker
 
-Stock Hype Tracker is a local web app for tracking ticker discussion across Reddit and Stocktwits, then comparing hype across multiple symbols in the same view. It is built for research and monitoring only; it is not trading advice.
+Stock Hype Tracker is a local web app for tracking ticker discussion across Reddit, then comparing hype across multiple symbols in the same view. It is built for research and monitoring only; it is not trading advice.
 
 ## What It Tracks
 
 - Reddit posts and comments that mention tickers or cashtags.
-- Recent Stocktwits symbol messages when access is available.
 - Relative ticker hype across a shared lookback window, source filter, and scoring method.
 
 ## Local Setup
@@ -26,6 +25,25 @@ Stock Hype Tracker is a local web app for tracking ticker discussion across Redd
    ```
 
 There are no npm package dependencies in the current version; the app uses Node's built-in HTTP server and `fetch`.
+
+## Reddit API Access
+
+Reddit may return `403` or `429` for public `.json` requests. For reliable local use, create a Reddit app and copy `.env.example` to `.env`.
+
+The server supports these modes, in order:
+
+- `REDDIT_BEARER_TOKEN` if you already have one.
+- `REDDIT_CLIENT_ID` + `REDDIT_REFRESH_TOKEN`.
+- `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` for app-only `client_credentials`.
+- `REDDIT_CLIENT_ID` without a secret for installed-client OAuth using `REDDIT_DEVICE_ID`.
+
+Set `REDDIT_USER_AGENT` to something descriptive that includes your Reddit username, then restart the server after changing `.env`.
+
+Check the current source status at:
+
+```text
+http://localhost:4173/api/sources
+```
 
 ## Comparing Multiple Tickers
 
@@ -50,16 +68,11 @@ Keep the same lookback window and source selection when comparing symbols. The a
 
 References: [Reddit API docs](https://www.reddit.com/dev/api/), [Reddit developer access help](https://support.reddithelp.com/hc/en-us/articles/14945211791892-Developer-Platform-Accessing-Reddit-Data), [Reddit Data API Terms](https://redditinc.com/policies/data-api-terms).
 
-### Stocktwits
+### Removed Sources
 
-- Uses Stocktwits' public symbol stream endpoint for recent messages by default, with optional `STOCKTWITS_ACCESS_TOKEN` passthrough.
-- The default Stocktwits endpoint is recent-only, so growth metrics are best interpreted as short-window momentum.
-- Stocktwits developer registration and commercial access may have separate approval, terms, and rate limits.
-- Do not scrape, harvest, mirror, data-mine, or automate extraction unless Stocktwits authorizes that access through an approved API, widget, developer offering, or other product rule.
-- Approved Firestream access uses authenticated streaming and may provide real-time symbol metrics rather than complete historical message archives.
-- Stocktwits content can be rate limited, incomplete, delayed, moderated, or unavailable depending on the access method.
+Stocktwits is not included as an active source because its developer registration is paused and automated extraction is restricted unless authorized through an approved API or product rule.
 
-References: [Stocktwits developer page](https://api.stocktwits.com/developers), [Stocktwits Terms](https://stocktwits.com/about/legal/terms/), [Stocktwits Firestream symbols stream docs](https://firestream-portal.stocktwits.com/documentation/symbols-stream).
+References: [Stocktwits developer page](https://api.stocktwits.com/developers), [Stocktwits Terms](https://stocktwits.com/about/legal/terms/).
 
 ## Legal And API Caveats
 

@@ -16,11 +16,15 @@ const MAX_COMMENT_POSTS = Number(process.env.MAX_COMMENT_POSTS || 7);
 const DEFAULT_HOURS = Number(process.env.DEFAULT_LOOKBACK_HOURS || 24);
 const DEFAULT_TICKER_TEXT = process.env.DEFAULT_TICKERS || "SPCE,SPCX";
 const REDDIT_USER_AGENT = process.env.REDDIT_USER_AGENT || "StockHypeTracker/0.1 local research dashboard";
+const REDDIT_CLIENT_ID = process.env.REDDIT_CLIENT_ID || "";
+const REDDIT_CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET || "";
+const REDDIT_REFRESH_TOKEN = process.env.REDDIT_REFRESH_TOKEN || "";
+const REDDIT_BEARER_TOKEN = process.env.REDDIT_BEARER_TOKEN || "";
+const REDDIT_USERNAME = process.env.REDDIT_USERNAME || "";
+const REDDIT_PASSWORD = process.env.REDDIT_PASSWORD || "";
+const REDDIT_DEVICE_ID = process.env.REDDIT_DEVICE_ID || "stockhypetrackerlocal01";
 const MAX_TICKERS = 12;
 const REDDIT_POST_LIMIT = Number(process.env.REDDIT_POST_LIMIT || 100);
-const STOCKTWITS_API_BASE_URL = process.env.STOCKTWITS_API_BASE_URL || "https://api.stocktwits.com/api/2";
-const STOCKTWITS_MESSAGE_LIMIT = Number(process.env.STOCKTWITS_MESSAGE_LIMIT || 30);
-const STOCKTWITS_ACCESS_TOKEN = process.env.STOCKTWITS_ACCESS_TOKEN || "";
 const DEFAULT_SUBREDDITS = (
   process.env.REDDIT_SUBREDDITS ||
   "wallstreetbets,stocks,pennystocks,Shortsqueeze,SPACs,investing,options"
@@ -31,6 +35,17 @@ const DEFAULT_SUBREDDITS = (
 
 const jsonCache = new Map();
 let redditTokenCache = null;
+
+class ApiError extends Error {
+  constructor(message, { status = 0, statusText = "", body = "", url = "" } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.statusText = statusText;
+    this.body = body;
+    this.url = url;
+  }
+}
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -174,7 +189,13 @@ async function fetchJson(url, { ttlMs = CACHE_TTL_MS, headers = {} } = {}) {
     });
 
     if (!response.ok) {
-      throw new Error(`${response.status} ${response.statusText}`);
+      const body = await response.text().catch(() => "");
+      throw new ApiError(`${response.status} ${response.statusText}`, {
+        status: response.status,
+        statusText: response.statusText,
+        body: body.slice(0, 500),
+        url
+      });
     }
 
     const value = await response.json();
@@ -190,26 +211,40 @@ function publicRedditUrl(pathname) {
   return `https://www.reddit.com${base}.json${query ? `?${query}` : ""}`;
 }
 
+function redditAuthMode() {
+  if (REDDIT_BEARER_TOKEN) return "bearer_token";
+  if (REDDIT_CLIENT_ID && REDDIT_REFRESH_TOKEN) return "refresh_token";
+  if (REDDIT_CLIENT_ID && REDDIT_CLIENT_SECRET && REDDIT_USERNAME && REDDIT_PASSWORD) return "password";
+  if (REDDIT_CLIENT_ID && REDDIT_CLIENT_SECRET) return "client_credentials";
+  if (REDDIT_CLIENT_ID) return "installed_client";
+  return "public_json";
+}
+
 async function getRedditAccessToken() {
-  if (process.env.REDDIT_BEARER_TOKEN) return process.env.REDDIT_BEARER_TOKEN;
+  if (REDDIT_BEARER_TOKEN) return REDDIT_BEARER_TOKEN;
   if (redditTokenCache && redditTokenCache.expiresAt > Date.now() + 30_000) {
     return redditTokenCache.accessToken;
   }
 
-  const clientId = process.env.REDDIT_CLIENT_ID;
-  const clientSecret = process.env.REDDIT_CLIENT_SECRET || "";
-  const refreshToken = process.env.REDDIT_REFRESH_TOKEN;
-  if (!clientId) return null;
+  const mode = redditAuthMode();
+  if (mode === "public_json") return null;
 
   const body = new URLSearchParams();
-  if (refreshToken) {
+  if (mode === "refresh_token") {
     body.set("grant_type", "refresh_token");
-    body.set("refresh_token", refreshToken);
-  } else {
+    body.set("refresh_token", REDDIT_REFRESH_TOKEN);
+  } else if (mode === "password") {
+    body.set("grant_type", "password");
+    body.set("username", REDDIT_USERNAME);
+    body.set("password", REDDIT_PASSWORD);
+  } else if (mode === "installed_client") {
+    body.set("grant_type", "https://oauth.reddit.com/grants/installed_client");
+    body.set("device_id", REDDIT_DEVICE_ID);
+  } else if (mode === "client_credentials") {
     body.set("grant_type", "client_credentials");
   }
 
-  const auth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  const auth = Buffer.from(`${REDDIT_CLIENT_ID}:${REDDIT_CLIENT_SECRET}`).toString("base64");
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -226,7 +261,13 @@ async function getRedditAccessToken() {
     });
 
     if (!response.ok) {
-      throw new Error(`${response.status} ${response.statusText}`);
+      const bodyText = await response.text().catch(() => "");
+      throw new ApiError(`Reddit OAuth ${response.status} ${response.statusText}`, {
+        status: response.status,
+        statusText: response.statusText,
+        body: bodyText.slice(0, 500),
+        url: "https://www.reddit.com/api/v1/access_token"
+      });
     }
 
     const payload = await response.json();
@@ -341,7 +382,7 @@ async function fetchSharedRedditFeeds(hours) {
         : [],
     errors: [posts, comments]
       .filter((entry) => entry.status === "rejected")
-      .map((entry) => `Reddit feed: ${entry.reason.message}`)
+      .map((entry) => humanSourceError("Reddit feed", entry.reason, "reddit"))
   };
 }
 
@@ -360,7 +401,7 @@ async function fetchRedditSearch(symbol) {
     if (entry.status === "fulfilled") {
       posts.push(...listingChildren(entry.value).map(mapRedditPost));
     } else {
-      errors.push(`Reddit search ${symbol}: ${entry.reason.message}`);
+      errors.push(humanSourceError(`Reddit search ${symbol}`, entry.reason, "reddit"));
     }
   }
 
@@ -408,7 +449,7 @@ async function collectReddit(symbol, shared, hours) {
     if (entry.status === "fulfilled") {
       entry.value.forEach(include);
     } else {
-      errors.push(`Reddit comments ${symbol}: ${entry.reason.message}`);
+      errors.push(humanSourceError(`Reddit comments ${symbol}`, entry.reason, "reddit"));
     }
   }
 
@@ -416,50 +457,6 @@ async function collectReddit(symbol, shared, hours) {
     items: [...itemsById.values()].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
     errors
   };
-}
-
-function mapStocktwitsMessage(message) {
-  const body = message?.body || "";
-  const rawSentiment = message?.entities?.sentiment?.basic;
-  const sentiment = rawSentiment ? rawSentiment.toLowerCase() : inferTextSentiment(body);
-  const likes = Number(message?.likes?.total || 0);
-  const reshares = Number(message?.reshares?.reshared_count || message?.reshares?.total || 0);
-
-  return {
-    id: `stocktwits-${message.id}`,
-    rawId: message.id,
-    source: "stocktwits",
-    type: "message",
-    title: "Stocktwits message",
-    text: body,
-    createdAt: message.created_at || null,
-    author: message?.user?.username || "stocktwits",
-    community: "Stocktwits",
-    engagement: likes + reshares,
-    score: likes,
-    comments: 0,
-    url: message.id ? `https://stocktwits.com/message/${message.id}` : null,
-    sentiment: sentiment === "bullish" || sentiment === "bearish" ? sentiment : "neutral"
-  };
-}
-
-async function collectStocktwits(symbol, hours) {
-  const cutoff = Date.now() - hours * 60 * 60 * 1000;
-  try {
-    const params = new URLSearchParams({ limit: String(STOCKTWITS_MESSAGE_LIMIT) });
-    if (STOCKTWITS_ACCESS_TOKEN) params.set("access_token", STOCKTWITS_ACCESS_TOKEN);
-    const payload = await fetchJson(`${STOCKTWITS_API_BASE_URL}/streams/symbol/${symbol}.json?${params.toString()}`);
-    const messages = Array.isArray(payload?.messages) ? payload.messages : [];
-    return {
-      items: messages
-        .map(mapStocktwitsMessage)
-        .filter((item) => item.createdAt && Date.parse(item.createdAt) >= cutoff)
-        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
-      errors: []
-    };
-  } catch (error) {
-    return { items: [], errors: [`Stocktwits ${symbol}: ${error.message}`] };
-  }
 }
 
 function countInRange(items, startMs, endMs = Date.now()) {
@@ -485,6 +482,62 @@ function uniqueErrors(errors) {
   return [...new Set(errors.filter(Boolean))];
 }
 
+function humanSourceError(label, error, provider) {
+  if (error instanceof ApiError && error.status === 403) {
+    if (provider === "reddit" && redditAuthMode() === "public_json") {
+      return `${label}: 403 blocked. Reddit is rejecting public JSON access from this network; add Reddit OAuth values to .env and restart.`;
+    }
+    if (provider === "reddit") {
+      return `${label}: 403 forbidden. Reddit rejected the configured OAuth request; check REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET/refresh token, and REDDIT_USER_AGENT.`;
+    }
+  }
+
+  if (error instanceof ApiError && error.status === 401) {
+    return `${label}: 401 unauthorized. Check the configured API token or OAuth credentials.`;
+  }
+
+  if (error instanceof ApiError && error.status === 429) {
+    if (provider === "reddit" && redditAuthMode() === "public_json") {
+      return `${label}: 429 rate limited. Reddit is throttling public access from this network; add Reddit OAuth values to .env and restart.`;
+    }
+    return `${label}: 429 rate limited. Slow down requests or check the provider limit for your credentials.`;
+  }
+
+  return `${label}: ${error.message}`;
+}
+
+function sourceConfig() {
+  return {
+    reddit: {
+      mode: redditAuthMode(),
+      hasClientId: Boolean(REDDIT_CLIENT_ID),
+      hasClientSecret: Boolean(REDDIT_CLIENT_SECRET),
+      hasRefreshToken: Boolean(REDDIT_REFRESH_TOKEN),
+      hasBearerToken: Boolean(REDDIT_BEARER_TOKEN),
+      hasUsernamePassword: Boolean(REDDIT_USERNAME && REDDIT_PASSWORD),
+      userAgentConfigured: REDDIT_USER_AGENT !== "StockHypeTracker/0.1 local research dashboard"
+    }
+  };
+}
+
+async function testSources() {
+  const result = {
+    generatedAt: new Date().toISOString(),
+    config: sourceConfig(),
+    reddit: { ok: false, message: "" }
+  };
+
+  try {
+    const payload = await fetchRedditJson(`/r/${DEFAULT_SUBREDDITS[0] || "stocks"}/new?limit=1&raw_json=1`);
+    result.reddit.ok = Array.isArray(payload?.data?.children);
+    result.reddit.message = result.reddit.ok ? "Reddit read endpoint is reachable." : "Reddit responded with an unexpected shape.";
+  } catch (error) {
+    result.reddit.message = humanSourceError("Reddit diagnostic", error, "reddit");
+  }
+
+  return result;
+}
+
 function buildTimeline(items, hours) {
   const bucketCount = clamp(Math.ceil(hours), 1, 48);
   const bucketMs = (hours * 60 * 60 * 1000) / bucketCount;
@@ -495,7 +548,6 @@ function buildTimeline(items, hours) {
       start: new Date(bucketStart).toISOString(),
       label: new Date(bucketStart).toLocaleTimeString("en-US", { hour: "numeric" }),
       reddit: 0,
-      stocktwits: 0,
       total: 0
     };
   });
@@ -504,7 +556,7 @@ function buildTimeline(items, hours) {
     const created = Date.parse(item.createdAt);
     const index = Math.floor((created - start) / bucketMs);
     if (index >= 0 && index < buckets.length) {
-      buckets[index][item.source] += 1;
+      buckets[index].reddit += 1;
       buckets[index].total += 1;
     }
   }
@@ -512,9 +564,9 @@ function buildTimeline(items, hours) {
   return buckets;
 }
 
-function computeMetrics(symbol, redditItems, stocktwitsItems, hours) {
+function computeMetrics(symbol, redditItems, hours) {
   const now = Date.now();
-  const items = [...redditItems, ...stocktwitsItems].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  const items = [...redditItems].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   const oneHour = 60 * 60 * 1000;
   const sixHours = 6 * oneHour;
   const current1h = countInRange(items, now - oneHour, now + 1);
@@ -547,8 +599,7 @@ function computeMetrics(symbol, redditItems, stocktwitsItems, hours) {
   const opinionated = sentimentCounts.bullish + sentimentCounts.bearish;
   const bullishShare = opinionated ? sentimentCounts.bullish / opinionated : 0.5;
   const sourceCounts = {
-    reddit: redditItems.length,
-    stocktwits: stocktwitsItems.length
+    reddit: redditItems.length
   };
   const authorCounts = topCounts(items, "author", 8);
   const topAuthorShare = items.length ? (authorCounts[0]?.count || 0) / items.length : 0;
@@ -600,7 +651,6 @@ function computeMetrics(symbol, redditItems, stocktwitsItems, hours) {
       total: items.length,
       redditPosts: redditItems.filter((item) => item.type === "post").length,
       redditComments: redditItems.filter((item) => item.type === "comment").length,
-      stocktwitsMessages: stocktwitsItems.length,
       current1h,
       previous1h,
       current6h,
@@ -641,11 +691,11 @@ async function buildHypePayload(tickers, hours) {
   const sharedReddit = await fetchSharedRedditFeeds(hours);
   const entries = await Promise.all(
     tickers.map(async (symbol) => {
-      const [reddit, stocktwits] = await Promise.all([collectReddit(symbol, sharedReddit, hours), collectStocktwits(symbol, hours)]);
-      const metrics = computeMetrics(symbol, reddit.items, stocktwits.items, hours);
+      const reddit = await collectReddit(symbol, sharedReddit, hours);
+      const metrics = computeMetrics(symbol, reddit.items, hours);
       return {
         ...metrics,
-        errors: uniqueErrors([...reddit.errors, ...stocktwits.errors])
+        errors: uniqueErrors(reddit.errors)
       };
     })
   );
@@ -697,8 +747,14 @@ const server = createServer(async (request, response) => {
         defaultTickers: parseTickers(DEFAULT_TICKER_TEXT),
         defaultHours: DEFAULT_HOURS,
         subreddits: DEFAULT_SUBREDDITS,
-        maxTickers: MAX_TICKERS
+        maxTickers: MAX_TICKERS,
+        sources: sourceConfig()
       });
+      return;
+    }
+
+    if (url.pathname === "/api/sources") {
+      sendJson(response, 200, await testSources());
       return;
     }
 

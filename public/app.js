@@ -157,12 +157,17 @@ function render() {
   elements.grid.innerHTML = state.data.tickers.map(renderTickerCard).join("");
 }
 
+function sourceStatus(ticker, source) {
+  const count = ticker.sourceCounts?.[source] || 0;
+  const hasError = (ticker.errors || []).some((error) => error.toLowerCase().includes(source));
+  if (count > 0) return { label: "live", className: "good" };
+  if (hasError) return { label: "blocked", className: "bad" };
+  return { label: "quiet", className: "muted" };
+}
+
 function renderComparison(tickers) {
   if (!elements.compareBody) return;
   elements.compareBody.innerHTML = tickers.map((ticker) => {
-    const sourceTotal = Math.max(ticker.counts.total, 1);
-    const redditPct = Math.round((ticker.sourceCounts.reddit / sourceTotal) * 100);
-    const stocktwitsPct = Math.round((ticker.sourceCounts.stocktwits / sourceTotal) * 100);
     return `
       <tr>
         <td><button class="symbol-link" data-action="focus" data-symbol="${ticker.symbol}">$${ticker.symbol}</button></td>
@@ -173,9 +178,7 @@ function renderComparison(tickers) {
         <td>${signedPercent(ticker.growth.velocityPct)}</td>
         <td>${ticker.breadth.uniqueAuthors}</td>
         <td>${Math.round(ticker.sentiment.bullishShare * 100)}%</td>
-        <td>
-          <span class="source-mini"><span style="width:${redditPct}%"></span><span style="width:${stocktwitsPct}%"></span></span>
-        </td>
+        <td>${ticker.counts.redditPosts}/${ticker.counts.redditComments}</td>
       </tr>
     `;
   }).join("");
@@ -183,16 +186,14 @@ function renderComparison(tickers) {
 
 function renderTickerCard(ticker) {
   const tickerWindowUrl = tickerUrl(ticker.symbol);
+  const redditStatus = sourceStatus(ticker, "reddit");
   const maxBucket = Math.max(...ticker.timeline.map((bucket) => bucket.total), 1);
   const timeline = ticker.timeline
     .map((bucket) => {
       const height = Math.max(4, Math.round((bucket.total / maxBucket) * 100));
-      const redditHeight = bucket.total ? Math.round((bucket.reddit / bucket.total) * height) : 0;
-      const stocktwitsHeight = Math.max(0, height - redditHeight);
       return `
         <div class="bar" title="${bucket.total} mentions at ${bucket.label}">
-          <span class="bar-reddit" style="height:${redditHeight}%"></span>
-          <span class="bar-stocktwits" style="height:${stocktwitsHeight}%"></span>
+          <span class="bar-reddit" style="height:${height}%"></span>
         </div>
       `;
     })
@@ -214,7 +215,7 @@ function renderTickerCard(ticker) {
     <article class="ticker-card" id="ticker-${ticker.symbol}">
       <header class="card-head">
         <div>
-          <p class="eyebrow">${ticker.sourceCounts.reddit} reddit / ${ticker.sourceCounts.stocktwits} stocktwits</p>
+          <p class="eyebrow">${ticker.sourceCounts.reddit} reddit mentions</p>
           <h2>$${ticker.symbol}</h2>
         </div>
         <div class="score-ring" style="--score:${ticker.hypeScore}">
@@ -243,6 +244,10 @@ function renderTickerCard(ticker) {
         ${metric("6h", signedPercent(ticker.growth.sixHourPct))}
         ${metric("Authors", ticker.breadth.uniqueAuthors)}
         ${metric("Engagement", compactNumber(ticker.engagement.total))}
+      </div>
+
+      <div class="source-status">
+        <span>Reddit <strong class="${redditStatus.className}">${redditStatus.label}</strong></span>
       </div>
 
       <div class="timeline" style="--buckets:${ticker.timeline.length}" aria-label="${ticker.symbol} mention timeline">${timeline}</div>
@@ -279,12 +284,12 @@ function metric(label, value) {
 
 function renderMention(item) {
   const text = escapeHtml(item.text || item.title || "").slice(0, 240);
-  const label = item.source === "reddit" ? item.community : "Stocktwits";
+  const label = item.community || "Reddit";
   const sentiment = item.sentiment || "neutral";
   return `
     <li class="mention">
       <div>
-        <span class="mention-source">${escapeHtml(label)} · ${escapeHtml(item.author)} · ${relativeTime(item.createdAt)}</span>
+        <span class="mention-source">${escapeHtml(label)} - ${escapeHtml(item.author)} - ${relativeTime(item.createdAt)}</span>
         <p>${text || escapeHtml(item.title)}</p>
       </div>
       <div class="mention-side">
