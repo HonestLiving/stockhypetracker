@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ticker Window - Stock Hype Tracker</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell single-shell" data-view="single">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Ticker Window</p>
+          <h1 id="singleTitle">Stock Hype Tracker</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-button" id="refreshButton" title="Refresh data" aria-label="Refresh data">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="control-band" aria-label="Ticker controls">
+        <form class="ticker-form" id="tickerForm">
+          <label for="tickerInput">Ticker</label>
+          <input id="tickerInput" name="ticker" value="SPCE" autocomplete="off" spellcheck="false" />
+          <button class="primary-button" type="submit">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/><path d="m14 6 6 6-6 6"/></svg>
+            <span>Load</span>
+          </button>
+        </form>
+        <label class="select-field">
+          <span>Window</span>
+          <select id="hoursSelect">
+            <option value="6">6h</option>
+            <option value="12">12h</option>
+            <option value="24" selected>24h</option>
+            <option value="48">48h</option>
+            <option value="72">72h</option>
+          </select>
+        </label>
+        <label class="toggle-field">
+          <input type="checkbox" id="autoRefresh" checked />
+          <span>Auto</span>
+        </label>
+      </section>
+
+      <section class="ticker-grid single-grid" id="tickerGrid" aria-label="Ticker panel"></section>
+    </main>
+
+    <script src="/app.js?v=20260530" type="module"></script>
+  </body>
+</html>

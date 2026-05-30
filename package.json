@@ -1,0 +1,21 @@
+{
+  "name": "stock-hype-tracker",
+  "version": "0.1.0",
+  "description": "Local Reddit and Stocktwits hype tracker for comparing ticker mention momentum.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "stocks",
+    "reddit",
+    "stocktwits",
+    "sentiment",
+    "hype-tracker"
+  ],
+  "license": "MIT"
+}

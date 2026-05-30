@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Stock Hype Tracker</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell" data-view="dashboard">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Reddit + Stocktwits</p>
+          <h1>Stock Hype Tracker</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-button" id="refreshButton" title="Refresh data" aria-label="Refresh data">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg>
+            <span>Refresh</span>
+          </button>
+          <button class="icon-button" id="popAllButton" title="Open each ticker in its own window" aria-label="Open each ticker in its own window">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10v10H9z"/><path d="M5 15H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v1"/></svg>
+            <span>Pop out</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="control-band" aria-label="Ticker controls">
+        <form class="ticker-form" id="tickerForm">
+          <label for="tickerInput">Tickers</label>
+          <input id="tickerInput" name="ticker" value="SPCE, SPCX" autocomplete="off" spellcheck="false" />
+          <button class="primary-button" type="submit">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            <span>Add</span>
+          </button>
+        </form>
+        <label class="select-field">
+          <span>Window</span>
+          <select id="hoursSelect">
+            <option value="6">6h</option>
+            <option value="12">12h</option>
+            <option value="24" selected>24h</option>
+            <option value="48">48h</option>
+            <option value="72">72h</option>
+          </select>
+        </label>
+        <label class="toggle-field">
+          <input type="checkbox" id="autoRefresh" checked />
+          <span>Auto</span>
+        </label>
+      </section>
+
+      <section class="compare-band" aria-label="Ticker comparison">
+        <div class="section-heading">
+          <h2>Comparison</h2>
+          <span id="lastUpdated">Waiting for data</span>
+        </div>
+        <div class="compare-table-wrap">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Score</th>
+                <th>Trend</th>
+                <th>Mentions</th>
+                <th>1h</th>
+                <th>Velocity</th>
+                <th>Authors</th>
+                <th>Bullish</th>
+                <th>Sources</th>
+              </tr>
+            </thead>
+            <tbody id="compareBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="ticker-grid" id="tickerGrid" aria-label="Ticker panels"></section>
+    </main>
+
+    <template id="emptyTemplate">
+      <div class="empty-state">
+        <h2>No tickers loaded</h2>
+        <p>Add a ticker to start tracking mentions.</p>
+      </div>
+    </template>
+
+    <script src="/app.js?v=20260530" type="module"></script>
+  </body>
+</html>
