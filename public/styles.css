@@ -473,6 +473,13 @@ svg {
   color: var(--muted);
 }
 
+.growth-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
 .timeline {
   display: grid;
   grid-template-columns: repeat(var(--buckets, 24), minmax(3px, 1fr));

@@ -295,6 +295,7 @@ function renderComparison(tickers) {
         <td>${ticker.counts.total}</td>
         <td>${ticker.counts.current1h}/${ticker.counts.previous1h}</td>
         <td>${signedPercent(ticker.growth.velocityPct)}</td>
+        <td>${signedPercent(ticker.growth.windowGrowthPct)}</td>
         <td>${ticker.breadth.uniqueAuthors}</td>
         <td>${Math.round(ticker.sentiment.bullishShare * 100)}%</td>
         <td>${ticker.counts.redditPosts}/${ticker.counts.redditComments}</td>
@@ -360,10 +361,14 @@ function renderTickerCard(ticker) {
         ${metric("Mentions", ticker.counts.total)}
         ${metric("1h now/prev", `${ticker.counts.current1h}/${ticker.counts.previous1h}`)}
         ${metric("Velocity", signedPercent(ticker.growth.velocityPct))}
-        ${metric("6h", signedPercent(ticker.growth.sixHourPct))}
+        ${metric("Window Δ", signedPercent(ticker.growth.windowGrowthPct))}
         ${metric("Authors", ticker.breadth.uniqueAuthors)}
         ${metric("Engagement", compactNumber(ticker.engagement.total))}
       </div>
+
+      <p class="growth-note">
+        Window Δ compares ${ticker.counts.currentWindowHalf} mentions in the recent half of this window with ${ticker.counts.previousWindowHalf} in the earlier half.
+      </p>
 
       <div class="source-status">
         <span>Reddit <strong class="${redditStatus.className}">${redditStatus.label}</strong></span>

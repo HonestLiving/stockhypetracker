@@ -99,6 +99,8 @@ TSLA,NVDA,AMD,SPY
 
 Keep the same lookback window and source selection when comparing symbols. The app should normalize plain tickers and cashtags, so `TSLA` and `$TSLA` are treated as the same symbol. Compare the relative hype score, mention count, source split, and trend direction together; a high social volume reading can reflect spam, coordinated posting, news shocks, or market-wide attention rather than fundamentals.
 
+The `Window Δ` metric compares the most recent half of your selected timeframe against the earlier half. For example, on a 24h window it compares the last 12 hours with the previous 12 hours; on a 6h window it compares the last 3 hours with the previous 3 hours.
+
 ## Data Sources And Limits
 
 ### Reddit

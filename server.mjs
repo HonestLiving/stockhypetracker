@@ -650,14 +650,19 @@ function computeMetrics(symbol, redditItems, hours) {
   const items = [...redditItems].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   const oneHour = 60 * 60 * 1000;
   const sixHours = 6 * oneHour;
+  const selectedWindowMs = hours * oneHour;
+  const halfWindowMs = selectedWindowMs / 2;
   const current1h = countInRange(items, now - oneHour, now + 1);
   const previous1h = countInRange(items, now - 2 * oneHour, now - oneHour);
   const current6h = countInRange(items, now - sixHours, now + 1);
   const previous6h = countInRange(items, now - 2 * sixHours, now - sixHours);
+  const currentWindowHalf = countInRange(items, now - halfWindowMs, now + 1);
+  const previousWindowHalf = countInRange(items, now - selectedWindowMs, now - halfWindowMs);
   const averageHourly = items.length / Math.max(hours, 1);
   const velocityRatio = averageHourly === 0 ? current1h : current1h / averageHourly;
   const velocityPct = pctChange(current1h, previous1h);
   const sixHourPct = pctChange(current6h, previous6h);
+  const windowGrowthPct = pctChange(currentWindowHalf, previousWindowHalf);
 
   const uniqueAuthors = new Set(items.map((item) => `${item.source}:${item.author}`).filter(Boolean));
   const communities = new Set(items.map((item) => item.community).filter(Boolean));
@@ -735,12 +740,15 @@ function computeMetrics(symbol, redditItems, hours) {
       current1h,
       previous1h,
       current6h,
-      previous6h
+      previous6h,
+      currentWindowHalf,
+      previousWindowHalf
     },
     growth: {
       velocityRatio: Number(velocityRatio.toFixed(2)),
       velocityPct: Math.round(velocityPct),
       sixHourPct: Math.round(sixHourPct),
+      windowGrowthPct: Math.round(windowGrowthPct),
       engagementPct: Math.round(engagementPct)
     },
     breadth: {
