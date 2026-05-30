@@ -14,3 +14,5 @@ jobs:
           node-version: 24
       - run: node --check server.mjs
       - run: node --check public/app.js
+      - run: node --check extension/background.js
+      - run: node --check extension/popup.js

@@ -1,10 +1,10 @@
 # Stock Hype Tracker
 
-Stock Hype Tracker is a local web app for tracking ticker discussion across Reddit, then comparing hype across multiple symbols in the same view. It is built for research and monitoring only; it is not trading advice.
+Stock Hype Tracker is a local web app for tracking ticker discussion on r/wallstreetbets, then comparing hype across multiple symbols in the same view. It is built for research and monitoring only; it is not trading advice.
 
 ## What It Tracks
 
-- Reddit posts and comments that mention tickers or cashtags.
+- r/wallstreetbets posts and comments that mention tickers or cashtags.
 - Relative ticker hype across a shared lookback window, source filter, and scoring method.
 
 ## Local Setup
@@ -45,22 +45,49 @@ Check the current source status at:
 http://localhost:4173/api/sources
 ```
 
-## Browser Import
+## Automatic WSB Scanner
+
+The most automatic setup is the included browser extension. It scans r/wallstreetbets from your browser session and sends results to the local app every two minutes.
+
+1. Open Chrome or Edge extensions:
+
+   ```text
+   chrome://extensions
+   ```
+
+2. Turn on **Developer mode**.
+3. Click **Load unpacked**.
+4. Select this folder:
+
+   ```text
+   C:\Users\matth\Documents\Stock hype tracker\extension
+   ```
+
+5. Keep the local tracker running:
+
+   ```bash
+   node server.mjs
+   ```
+
+The extension reads Reddit pages your browser can already access and posts public JSON results to `http://localhost:4173`. It does not ask for or store your Reddit password.
+
+## Browser Bookmarklet
 
 If Reddit blocks public server requests while your normal browser can view Reddit, use the local import tools in the dashboard.
 
-- Paste Reddit JSON into **Browser Import** and click **Import**.
-- Or drag **Reddit to Tracker** to your bookmarks bar, open a Reddit listing/search/comments page, then click the bookmarklet.
+- Drag **WSB Bookmarklet** to your bookmarks bar.
+- Open r/wallstreetbets in your browser.
+- Click the bookmarklet once to start or stop a two-minute scanner in that Reddit tab.
 
 Useful pages to import:
 
 ```text
-https://www.reddit.com/r/stocks/new.json?limit=100&raw_json=1
-https://www.reddit.com/r/wallstreetbets/search.json?q=SPCE&sort=new&t=week&limit=100&raw_json=1
-https://www.reddit.com/r/investing/comments.json?limit=100&raw_json=1
+https://www.reddit.com/r/wallstreetbets/new.json?limit=100&raw_json=1
+https://www.reddit.com/r/wallstreetbets/comments.json?limit=100&raw_json=1
+https://www.reddit.com/r/wallstreetbets/search.json?q=SPCE&restrict_sr=1&sort=new&t=day&limit=100&raw_json=1
 ```
 
-The bookmarklet imports the currently open Reddit page into your local `localhost:4173` app. It does not read or store browser cookies.
+The bookmarklet imports WSB JSON into your local `localhost:4173` app. It does not read or store browser cookies.
 
 ## Comparing Multiple Tickers
 

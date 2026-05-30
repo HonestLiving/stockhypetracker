@@ -27,7 +27,7 @@ const MAX_TICKERS = 12;
 const REDDIT_POST_LIMIT = Number(process.env.REDDIT_POST_LIMIT || 100);
 const DEFAULT_SUBREDDITS = (
   process.env.REDDIT_SUBREDDITS ||
-  "wallstreetbets,stocks,pennystocks,Shortsqueeze,SPACs,investing,options"
+  "wallstreetbets"
 )
   .split(",")
   .map((name) => name.trim())
@@ -36,6 +36,7 @@ const DEFAULT_SUBREDDITS = (
 const jsonCache = new Map();
 const importedRedditItems = new Map();
 let redditTokenCache = null;
+let lastTrackedTickers = [];
 
 class ApiError extends Error {
   constructor(message, { status = 0, statusText = "", body = "", url = "" } = {}) {
@@ -127,6 +128,8 @@ function parseTickers(value) {
     })
     .slice(0, MAX_TICKERS);
 }
+
+lastTrackedTickers = parseTickers(DEFAULT_TICKER_TEXT);
 
 function tickerPattern(symbol) {
   return new RegExp(`(^|[^A-Za-z0-9])\\$?${escapeRegExp(symbol)}([^A-Za-z0-9]|$)`, "i");
@@ -606,7 +609,7 @@ async function testSources() {
   };
 
   try {
-    const payload = await fetchRedditJson(`/r/${DEFAULT_SUBREDDITS[0] || "stocks"}/new?limit=1&raw_json=1`);
+    const payload = await fetchRedditJson(`/r/${DEFAULT_SUBREDDITS[0] || "wallstreetbets"}/new?limit=1&raw_json=1`);
     result.reddit.ok = Array.isArray(payload?.data?.children);
     result.reddit.message = result.reddit.ok ? "Reddit read endpoint is reachable." : "Reddit responded with an unexpected shape.";
   } catch (error) {
@@ -888,6 +891,15 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (url.pathname === "/api/tracked-tickers") {
+      if (request.method === "OPTIONS") {
+        sendCorsPreflight(response);
+        return;
+      }
+      sendCorsJson(response, 200, { tickers: lastTrackedTickers });
+      return;
+    }
+
     if (url.pathname === "/api/imports") {
       if (request.method === "DELETE") {
         importedRedditItems.clear();
@@ -931,6 +943,7 @@ const server = createServer(async (request, response) => {
         sendJson(response, 400, { error: "Provide at least one ticker." });
         return;
       }
+      lastTrackedTickers = tickers;
       sendJson(response, 200, await buildHypePayload(tickers, hours));
       return;
     }

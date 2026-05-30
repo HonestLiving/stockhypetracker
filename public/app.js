@@ -107,30 +107,69 @@ function syncUrl() {
   params.set("hours", String(state.hours));
   const next = `${window.location.pathname}?${params.toString()}`;
   window.history.replaceState(null, "", next);
+  setupBookmarklet();
 }
 
 function redditJsonUrlScript() {
+  const tickers = JSON.stringify(state.tickers.slice(0, 6));
   return `
-    const asJsonUrl = (href) => {
-      const url = new URL(href);
-      if (!url.pathname.endsWith(".json")) {
-        url.pathname = url.pathname.replace(/\\/$/, "") + ".json";
+    const localBase = "${window.location.origin}";
+    const redditBase = "https://www.reddit.com";
+    const tickers = ${tickers};
+    if (!/reddit\\.com$/i.test(location.hostname)) {
+      alert("Open Reddit first, then click WSB Bookmarklet. Sending you to WSB now.");
+      location.href = "https://www.reddit.com/r/wallstreetbets/new/";
+      return;
+    }
+    if (window.__stockHypeWsbScanner?.stop) {
+      window.__stockHypeWsbScanner.stop();
+      alert("WSB scanner stopped.");
+      return;
+    }
+    const status = document.createElement("div");
+    status.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:2147483647;background:#17211f;color:#fff;padding:10px 12px;border-radius:8px;font:13px system-ui;box-shadow:0 10px 30px rgba(0,0,0,.25)";
+    status.textContent = "WSB scanner starting...";
+    document.body.appendChild(status);
+    const endpoints = [
+      "/r/wallstreetbets/new.json?limit=100&raw_json=1",
+      "/r/wallstreetbets/comments.json?limit=100&raw_json=1",
+      ...tickers.flatMap((ticker) => [
+        "/r/wallstreetbets/search.json?q=" + encodeURIComponent("$" + ticker) + "&restrict_sr=1&sort=new&t=day&limit=100&raw_json=1",
+        "/r/wallstreetbets/search.json?q=" + encodeURIComponent(ticker) + "&restrict_sr=1&sort=new&t=day&limit=100&raw_json=1"
+      ])
+    ];
+    const scan = async () => {
+      let added = 0;
+      let updated = 0;
+      for (const endpoint of endpoints) {
+        const sourceUrl = redditBase + endpoint;
+        const redditResponse = await fetch(sourceUrl, { credentials: "include", cache: "no-store" });
+        if (!redditResponse.ok) throw new Error(redditResponse.status + " " + redditResponse.statusText + " from Reddit");
+        const payload = await redditResponse.json();
+        const importResponse = await fetch(localBase + "/api/import-reddit", {
+          method: "POST",
+          mode: "cors",
+          headers: { "content-type": "text/plain" },
+          body: JSON.stringify({ sourceUrl, payload })
+        });
+        const result = await importResponse.json();
+        if (!result.ok) throw new Error(result.error || "Tracker import failed");
+        added += result.added || 0;
+        updated += result.updated || 0;
       }
-      url.searchParams.set("raw_json", "1");
-      return url.href;
+      status.textContent = "WSB scanner running - added " + added + ", updated " + updated + " at " + new Date().toLocaleTimeString();
     };
-    const response = await fetch(asJsonUrl(location.href), { credentials: "include" });
-    if (!response.ok) throw new Error(response.status + " " + response.statusText);
-    const payload = await response.json();
-    const imported = await fetch("${window.location.origin}/api/import-reddit", {
-      method: "POST",
-      mode: "cors",
-      headers: { "content-type": "text/plain" },
-      body: JSON.stringify({ sourceUrl: location.href, payload })
-    });
-    const result = await imported.json();
-    if (!result.ok) throw new Error(result.error || "Import failed");
-    alert("Imported " + result.added + " new Reddit items into Stock Hype Tracker.");
+    window.__stockHypeWsbScanner = {
+      stop() {
+        clearInterval(this.timer);
+        status.remove();
+        delete window.__stockHypeWsbScanner;
+      },
+      timer: setInterval(() => scan().catch((error) => {
+        status.textContent = "WSB scanner error - " + error.message;
+      }), 120000)
+    };
+    await scan();
   `;
 }
 

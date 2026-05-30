@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WSB Scanner</title>
+    <style>
+      body {
+        width: 280px;
+        margin: 0;
+        padding: 14px;
+        color: #17211f;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      h1 {
+        margin: 0 0 10px;
+        font-size: 1rem;
+      }
+
+      p {
+        margin: 8px 0;
+        color: #596a65;
+        font-size: 0.86rem;
+        line-height: 1.35;
+      }
+
+      button {
+        width: 100%;
+        min-height: 36px;
+        margin-top: 8px;
+        border: 1px solid #cad6d1;
+        border-radius: 8px;
+        background: #166f52;
+        color: #fff;
+        font-weight: 750;
+      }
+
+      button.secondary {
+        background: #fff;
+        color: #17211f;
+      }
+
+      .status {
+        padding: 9px;
+        border: 1px solid #d9e1dd;
+        border-radius: 8px;
+        background: #f2f6f4;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>WSB Scanner</h1>
+    <div class="status" id="status">Loading...</div>
+    <button id="scanNow">Scan now</button>
+    <button class="secondary" id="toggle">Pause</button>
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Stock Hype WSB Scanner",
+  "version": "0.1.0",
+  "description": "Scans r/wallstreetbets and sends public Reddit JSON to the local Stock Hype Tracker app.",
+  "permissions": ["alarms", "storage"],
+  "host_permissions": [
+    "https://www.reddit.com/*",
+    "https://old.reddit.com/*",
+    "http://localhost:4173/*",
+    "http://127.0.0.1:4173/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "WSB Scanner",
+    "default_popup": "popup.html"
+  }
+}
