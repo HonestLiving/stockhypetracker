@@ -34,6 +34,7 @@ const DEFAULT_SUBREDDITS = (
   .filter(Boolean);
 
 const jsonCache = new Map();
+const importedRedditItems = new Map();
 let redditTokenCache = null;
 
 class ApiError extends Error {
@@ -363,6 +364,83 @@ function flattenCommentListing(children, output = []) {
   return output;
 }
 
+function collectRedditThings(node, output = [], seen = new Set()) {
+  if (!node) return output;
+
+  if (Array.isArray(node)) {
+    for (const item of node) collectRedditThings(item, output, seen);
+    return output;
+  }
+
+  if (typeof node !== "object") return output;
+
+  if ((node.kind === "t3" || node.kind === "t1") && node.data?.id && !seen.has(`${node.kind}:${node.data.id}`)) {
+    seen.add(`${node.kind}:${node.data.id}`);
+    const item = node.kind === "t3" ? mapRedditPost(node) : mapRedditComment(node);
+    if (item.createdAt) output.push(item);
+  }
+
+  if (node.data?.children) collectRedditThings(node.data.children, output, seen);
+  if (node.data?.replies) collectRedditThings(node.data.replies, output, seen);
+
+  return output;
+}
+
+function pruneImportedRedditItems() {
+  const maxAge = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  for (const [id, entry] of importedRedditItems) {
+    if (entry.importedAtMs < maxAge) importedRedditItems.delete(id);
+  }
+
+  if (importedRedditItems.size <= 5000) return;
+  const ordered = [...importedRedditItems.entries()].sort((a, b) => b[1].importedAtMs - a[1].importedAtMs);
+  importedRedditItems.clear();
+  for (const [id, entry] of ordered.slice(0, 5000)) {
+    importedRedditItems.set(id, entry);
+  }
+}
+
+function importRedditPayload(payload, sourceUrl = "manual import") {
+  const importedAt = new Date().toISOString();
+  const importedAtMs = Date.now();
+  const items = collectRedditThings(payload);
+  let added = 0;
+  let updated = 0;
+
+  for (const item of items) {
+    const existed = importedRedditItems.has(item.id);
+    importedRedditItems.set(item.id, {
+      ...item,
+      importedAt,
+      importedAtMs,
+      importSourceUrl: sourceUrl
+    });
+    if (existed) {
+      updated += 1;
+    } else {
+      added += 1;
+    }
+  }
+
+  pruneImportedRedditItems();
+
+  return {
+    found: items.length,
+    added,
+    updated,
+    totalImported: importedRedditItems.size,
+    importedAt
+  };
+}
+
+function importedRedditSnapshot(hours) {
+  pruneImportedRedditItems();
+  const cutoff = Date.now() - hours * 60 * 60 * 1000;
+  return [...importedRedditItems.values()]
+    .filter((item) => Date.parse(item.createdAt) >= cutoff)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+}
+
 async function fetchSharedRedditFeeds(hours) {
   const multi = DEFAULT_SUBREDDITS.join("+");
   const limit = Math.min(REDDIT_POST_LIMIT, 100);
@@ -689,12 +767,19 @@ function computeMetrics(symbol, redditItems, hours) {
 
 async function buildHypePayload(tickers, hours) {
   const sharedReddit = await fetchSharedRedditFeeds(hours);
+  const importedItems = importedRedditSnapshot(hours);
+  sharedReddit.posts.push(...importedItems.filter((item) => item.type === "post"));
+  sharedReddit.comments.push(...importedItems.filter((item) => item.type === "comment"));
+
   const entries = await Promise.all(
     tickers.map(async (symbol) => {
       const reddit = await collectReddit(symbol, sharedReddit, hours);
       const metrics = computeMetrics(symbol, reddit.items, hours);
       return {
         ...metrics,
+        importCounts: {
+          matched: reddit.items.filter((item) => item.importedAt).length
+        },
         errors: uniqueErrors(reddit.errors)
       };
     })
@@ -704,6 +789,10 @@ async function buildHypePayload(tickers, hours) {
     generatedAt: new Date().toISOString(),
     hours,
     subreddits: DEFAULT_SUBREDDITS,
+    imports: {
+      total: importedRedditItems.size,
+      inWindow: importedItems.length
+    },
     tickers: entries
   };
 }
@@ -714,6 +803,42 @@ function sendJson(response, status, payload) {
     "cache-control": "no-store"
   });
   response.end(JSON.stringify(payload, null, 2));
+}
+
+function sendCorsJson(response, status, payload) {
+  response.writeHead(status, {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET,POST,DELETE,OPTIONS",
+    "access-control-allow-headers": "content-type",
+    "access-control-allow-private-network": "true",
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store"
+  });
+  response.end(JSON.stringify(payload, null, 2));
+}
+
+function sendCorsPreflight(response) {
+  response.writeHead(204, {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET,POST,DELETE,OPTIONS",
+    "access-control-allow-headers": "content-type",
+    "access-control-allow-private-network": "true",
+    "cache-control": "no-store"
+  });
+  response.end();
+}
+
+async function readBody(request, maxBytes = 6_000_000) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of request) {
+    total += chunk.length;
+    if (total > maxBytes) {
+      throw new Error("Request body is too large.");
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 async function serveStatic(request, response, pathname) {
@@ -737,6 +862,11 @@ const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url, `http://${request.headers.host}`);
 
+    if (url.pathname === "/api/import-reddit" && request.method === "OPTIONS") {
+      sendCorsPreflight(response);
+      return;
+    }
+
     if (url.pathname === "/api/health") {
       sendJson(response, 200, { ok: true, time: new Date().toISOString() });
       return;
@@ -755,6 +885,42 @@ const server = createServer(async (request, response) => {
 
     if (url.pathname === "/api/sources") {
       sendJson(response, 200, await testSources());
+      return;
+    }
+
+    if (url.pathname === "/api/imports") {
+      if (request.method === "DELETE") {
+        importedRedditItems.clear();
+        sendJson(response, 200, { ok: true, totalImported: 0 });
+        return;
+      }
+
+      sendJson(response, 200, {
+        totalImported: importedRedditItems.size,
+        sample: [...importedRedditItems.values()].slice(0, 5).map((item) => ({
+          type: item.type,
+          title: item.title,
+          community: item.community,
+          createdAt: item.createdAt,
+          importedAt: item.importedAt
+        }))
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/import-reddit" && request.method === "POST") {
+      try {
+        const body = await readBody(request);
+        const parsed = JSON.parse(body);
+        const payload = parsed.payload ?? parsed.data ?? parsed;
+        const sourceUrl = parsed.sourceUrl || parsed.url || "manual import";
+        sendCorsJson(response, 200, {
+          ok: true,
+          ...importRedditPayload(payload, sourceUrl)
+        });
+      } catch (error) {
+        sendCorsJson(response, 400, { ok: false, error: error.message || "Import failed" });
+      }
       return;
     }
 

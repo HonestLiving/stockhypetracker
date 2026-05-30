@@ -17,7 +17,12 @@ const elements = {
   grid: document.querySelector("#tickerGrid"),
   compareBody: document.querySelector("#compareBody"),
   lastUpdated: document.querySelector("#lastUpdated"),
-  singleTitle: document.querySelector("#singleTitle")
+  singleTitle: document.querySelector("#singleTitle"),
+  importStatus: document.querySelector("#importStatus"),
+  importText: document.querySelector("#importText"),
+  importButton: document.querySelector("#importButton"),
+  clearImports: document.querySelector("#clearImportsButton"),
+  bookmarklet: document.querySelector("#bookmarkletLink")
 };
 
 function icon(name) {
@@ -104,6 +109,38 @@ function syncUrl() {
   window.history.replaceState(null, "", next);
 }
 
+function redditJsonUrlScript() {
+  return `
+    const asJsonUrl = (href) => {
+      const url = new URL(href);
+      if (!url.pathname.endsWith(".json")) {
+        url.pathname = url.pathname.replace(/\\/$/, "") + ".json";
+      }
+      url.searchParams.set("raw_json", "1");
+      return url.href;
+    };
+    const response = await fetch(asJsonUrl(location.href), { credentials: "include" });
+    if (!response.ok) throw new Error(response.status + " " + response.statusText);
+    const payload = await response.json();
+    const imported = await fetch("${window.location.origin}/api/import-reddit", {
+      method: "POST",
+      mode: "cors",
+      headers: { "content-type": "text/plain" },
+      body: JSON.stringify({ sourceUrl: location.href, payload })
+    });
+    const result = await imported.json();
+    if (!result.ok) throw new Error(result.error || "Import failed");
+    alert("Imported " + result.added + " new Reddit items into Stock Hype Tracker.");
+  `;
+}
+
+function setupBookmarklet() {
+  if (!elements.bookmarklet) return;
+  const code = `(async()=>{try{${redditJsonUrlScript()}}catch(error){alert("Reddit import failed: "+error.message)}})()`;
+  elements.bookmarklet.href = `javascript:${encodeURIComponent(code)}`;
+  elements.bookmarklet.title = "Drag to bookmarks, then click it on a Reddit page.";
+}
+
 async function loadData() {
   if (state.loading || !state.tickers.length) return;
   state.loading = true;
@@ -127,6 +164,48 @@ async function loadData() {
     state.loading = false;
     document.body.classList.remove("is-loading");
   }
+}
+
+function updateImportStatus() {
+  if (!elements.importStatus) return;
+  const imports = state.data?.imports;
+  if (!imports?.total) {
+    elements.importStatus.textContent = "No local imports";
+    return;
+  }
+  elements.importStatus.textContent = `${imports.inWindow} in window / ${imports.total} imported`;
+}
+
+async function importPastedRedditJson() {
+  if (!elements.importText) return;
+  const raw = elements.importText.value.trim();
+  if (!raw) {
+    elements.importStatus.textContent = "Paste Reddit JSON first";
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(raw);
+    const response = await fetch("/api/import-reddit", {
+      method: "POST",
+      headers: { "content-type": "text/plain" },
+      body: JSON.stringify({ sourceUrl: "manual paste", payload })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Import failed");
+    elements.importText.value = "";
+    elements.importStatus.textContent = `${result.added} new / ${result.updated} updated`;
+    await loadData();
+  } catch (error) {
+    elements.importStatus.textContent = `Import failed: ${error.message}`;
+  }
+}
+
+async function clearImportedRedditJson() {
+  await fetch("/api/imports", { method: "DELETE" });
+  if (elements.importText) elements.importText.value = "";
+  if (elements.importStatus) elements.importStatus.textContent = "No local imports";
+  await loadData();
 }
 
 function renderError(error) {
@@ -155,6 +234,7 @@ function render() {
 
   renderComparison(state.data.tickers);
   elements.grid.innerHTML = state.data.tickers.map(renderTickerCard).join("");
+  updateImportStatus();
 }
 
 function sourceStatus(ticker, source) {
@@ -338,6 +418,8 @@ elements.hours?.addEventListener("change", () => {
 elements.auto?.addEventListener("change", scheduleRefresh);
 elements.refresh?.addEventListener("click", loadData);
 elements.popAll?.addEventListener("click", () => state.tickers.forEach(openTickerWindow));
+elements.importButton?.addEventListener("click", importPastedRedditJson);
+elements.clearImports?.addEventListener("click", clearImportedRedditJson);
 
 document.addEventListener("click", (event) => {
   const button = event.target.closest("[data-action]");
@@ -375,6 +457,7 @@ async function loadConfig(paramsState) {
 
 const paramsState = readParams();
 await loadConfig(paramsState);
+setupBookmarklet();
 syncUrl();
 scheduleRefresh();
 loadData();

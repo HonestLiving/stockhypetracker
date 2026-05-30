@@ -45,6 +45,23 @@ Check the current source status at:
 http://localhost:4173/api/sources
 ```
 
+## Browser Import
+
+If Reddit blocks public server requests while your normal browser can view Reddit, use the local import tools in the dashboard.
+
+- Paste Reddit JSON into **Browser Import** and click **Import**.
+- Or drag **Reddit to Tracker** to your bookmarks bar, open a Reddit listing/search/comments page, then click the bookmarklet.
+
+Useful pages to import:
+
+```text
+https://www.reddit.com/r/stocks/new.json?limit=100&raw_json=1
+https://www.reddit.com/r/wallstreetbets/search.json?q=SPCE&sort=new&t=week&limit=100&raw_json=1
+https://www.reddit.com/r/investing/comments.json?limit=100&raw_json=1
+```
+
+The bookmarklet imports the currently open Reddit page into your local `localhost:4173` app. It does not read or store browser cookies.
+
 ## Comparing Multiple Tickers
 
 Use the ticker comparison input with comma-separated symbols, for example:

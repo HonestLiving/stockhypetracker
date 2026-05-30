@@ -50,6 +50,28 @@
         </label>
       </section>
 
+      <section class="import-band" aria-label="Reddit import controls">
+        <div class="section-heading">
+          <h2>Browser Import</h2>
+          <span id="importStatus">No local imports</span>
+        </div>
+        <div class="import-actions">
+          <a class="ghost-button" id="bookmarkletLink" href="#">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            <span>Reddit to Tracker</span>
+          </a>
+          <button class="ghost-button" id="importButton" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            <span>Import</span>
+          </button>
+          <button class="ghost-button" id="clearImportsButton" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+            <span>Clear</span>
+          </button>
+        </div>
+        <textarea id="importText" spellcheck="false" aria-label="Paste Reddit JSON"></textarea>
+      </section>
+
       <section class="compare-band" aria-label="Ticker comparison">
         <div class="section-heading">
           <h2>Comparison</h2>

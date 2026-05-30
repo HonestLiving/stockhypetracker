@@ -64,6 +64,7 @@ svg {
 .topbar,
 .control-band,
 .compare-band,
+.import-band,
 .ticker-card {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.92);
@@ -236,6 +237,32 @@ svg {
   margin-top: 14px;
   padding: 16px;
   border-radius: 8px;
+}
+
+.import-band {
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.import-band textarea {
+  width: 100%;
+  min-height: 92px;
+  max-height: 220px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--panel-strong);
+  color: var(--ink);
+  font: 0.86rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 .section-heading {
